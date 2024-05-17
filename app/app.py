@@ -1,5 +1,6 @@
 import json
 
+import jwt
 import pymongo.collection
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
@@ -39,6 +40,10 @@ class Application:
         path = self.environ['PATH_INFO']
         method = self.environ['REQUEST_METHOD']
         post_input = {}
+        auth_token = None
+        if 'HTTP_AUTH' in self.environ:
+            auth_token = self.environ['HTTP_AUTH']
+
         if method == "POST":
             input_obj = self.environ['wsgi.input']
             input_len = int(self.environ['CONTENT_LENGTH'])
@@ -65,7 +70,7 @@ class Application:
                                 post_input["password"],
                                 collection
                             )
-                        response = b"Successfull registration"
+                        response = b"Successful registration"
                         status = "200 OK"
                     except Exception as e:
                         print(e)
@@ -91,6 +96,35 @@ class Application:
                 else:
                     response = b"405 Method not allowed"
                     status = "405 Method not allowed"
+            case "/reset_password":
+                if method == "POST":
+                    try:
+                        collection = self.database.get_collection("users")
+                        auth.reset_password(
+                            post_input["email"],
+                            post_input["new_password"],
+                            collection
+                        )
+                        response = b"Password changed successfully"
+                        status = "200 OK"
+                    except Exception as e:
+                        print(e)
+                        response = f"Error of type: {type(e)}".encode()
+                        status = "400 Bad Request"
+                else:
+                    response = b"405 Method not allowed"
+                    status = "405 Method not allowed"
+            case "/protected":
+                try:
+                    name = auth.authenticate(auth_token)
+                    response = f"Welcome {name}".encode()
+                    status = "200 OK"
+                except (jwt.exceptions.ExpiredSignatureError, jwt.exceptions.InvalidSignatureError) as e:
+                    response = f"{e}".encode()
+                    status = "403 Forbidden"
+                except (jwt.exceptions.DecodeError):
+                    response = b"You need to be authenticated to access this page"
+                    status = "403 Forbidden"
             case _:
                 response = b"404 Not Found"
                 status = "404 Not Found"
