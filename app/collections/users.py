@@ -16,10 +16,10 @@ users_validation = {
         "bsonType": "string"
       },
       "password": {
-        "bsonType": "string"
+        "bsonType": "binData"
       },
       "salt": {
-        "bsonType": "string"
+        "bsonType": "binData"
       },
       "active": {
         "bsonType": "bool"
@@ -28,10 +28,10 @@ users_validation = {
         "bsonType": "date"
       },
       "last_login": {
-        "bsonType": "timestamp"
+        "bsonType": "date"
       },
       "last_active": {
-        "bsonType": "timestamp"
+        "bsonType": "date"
       }
     }
   }
@@ -52,8 +52,8 @@ def add_random_user(database: pymongo.database.Database) -> None:
     collection.insert_one({
         "username": fake.user_name(),
         "email": fake.email(),
-        "password": "for now just a string",
-        "salt": "for now just a string",
+        "password": fake.binary(512),
+        "salt": fake.binary(32),
         "active": fake.boolean(),
         "date_created": fake.date_time()
     })
