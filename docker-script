@@ -1,0 +1,3 @@
+#!/bin/zsh
+sudo docker build -t python-praktyki-app .
+sudo docker run --rm -it -p 8000:8000 python-praktyki-app

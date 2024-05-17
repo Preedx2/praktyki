@@ -6,8 +6,8 @@ from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from bson.json_util import dumps
 
-import app.collections.users as users
-import app.auth as auth
+import source.collections.users as users
+import source.auth as auth
 
 
 class Application:
@@ -59,13 +59,15 @@ class Application:
         Handles most of the exceptions
         :return: response to the server
         """
+        print("Received http request")
         path = self.environ['PATH_INFO']
         method = self.environ['REQUEST_METHOD']
-        post_input = {}
+
         auth_token = None
         if 'HTTP_AUTH' in self.environ:
             auth_token = self.environ['HTTP_AUTH']
 
+        post_input = {}
         if method == "POST":
             input_obj = self.environ['wsgi.input']
             input_len = int(self.environ['CONTENT_LENGTH'])
