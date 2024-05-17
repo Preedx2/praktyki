@@ -9,12 +9,19 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 
 
+# TODO make config file for environmental variables
 # regex for recognizing email
 REGEX_EMAIL = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
-HASH_ITERS = 100000
+HASH_ITERS = 100000     # number of iterations of hashing function - 100000 results in ~ 10 ms delay
 
 
 def authenticate(token) -> str:
+    """
+    Decode given token using public key and return associated username.
+    Error handling is taken care of in the main Application class
+    :param token: token taken from the header of a request
+    :return: associated username as a string
+    """
     public_key = open(".ssh/id_rsa.pub", "r").read()
     key = serialization.load_ssh_public_key(public_key.encode())
     payload = jwt.decode(token, key=key, algorithms=['RS256', ])
@@ -22,6 +29,13 @@ def authenticate(token) -> str:
 
 
 def login(login_str: str, password: str, users: pymongo.collection.Collection) -> str:
+    """
+    Login existing user into the application.
+    :param login_str: either username or email - application automatically recognizes which one
+    :param password: password
+    :param users: collection of users from the database
+    :return: encoded jwt token authenticating user for 8 hours
+    """
     if re.fullmatch(REGEX_EMAIL, login_str):
         user = users.find_one({"email": login_str})
     else:
@@ -34,7 +48,7 @@ def login(login_str: str, password: str, users: pymongo.collection.Collection) -
     start = time.time_ns()
     hashed_pswd = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, HASH_ITERS)
     end = time.time_ns()
-    print(f"Hashing time: {end-start} ns")
+    # print(f"Hashing time: {end-start} ns")
     if user.get("password") != hashed_pswd:
         raise ValueError(f"Invalid password")
 
@@ -44,6 +58,7 @@ def login(login_str: str, password: str, users: pymongo.collection.Collection) -
     private_key = open('.ssh/id_rsa', 'r').read()
     key = serialization.load_ssh_private_key(private_key.encode(), password=b'')
 
+    # in token could have used _id, but usernames are unique and human readable so I decided to use them instead
     token = jwt.encode(
         payload={
             "username": user.get("username"),
@@ -53,11 +68,18 @@ def login(login_str: str, password: str, users: pymongo.collection.Collection) -
         algorithm='RS256'
     )
 
-    # return {"Successful login": ""}
     return token
 
 
 def register(username: str, email: str, password: str, users: pymongo.collection.Collection) -> None:
+    """
+    Register new user and insert him to the database. Function also handles validation
+    :param username: string between 3 and 64 characters, must be unique and cannot be a valid email address
+    :param email: string no longer than 256 characters, must be unique and a valid email address
+    :param password: string between 8 and 64 characters
+    :param users: collection of users from the database
+    :return: None
+    """
     if not re.fullmatch(REGEX_EMAIL, email):
         raise ValueError("Improper email format")
     if re.fullmatch(REGEX_EMAIL, username):
@@ -89,6 +111,16 @@ def register(username: str, email: str, password: str, users: pymongo.collection
 
 
 def reset_password(email: str, new_password: str, users: pymongo.collection.Collection) -> None:
+    """
+    Function for resetting password of user with specified email address.
+
+    NOTE: in deployment it should be validated with unique token generated on password reset request
+    :param email: string with email of an existing user
+    :param new_password: string with new user password - can be the same as previous password,
+    in that case change will result in generation of new salt and hashed password
+    :param users: collection of users from the database
+    :return: None
+    """
     user = users.find_one({"email": email})  # in real life it should be controlled by tokenized emails
 
     if not user:

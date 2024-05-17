@@ -1,8 +1,7 @@
 import pymongo.database
 from faker import Faker
-from pymongo import MongoClient
-from pymongo.server_api import ServerApi
 
+# Validation schema for 'users' collection
 users_validation = {
   "$jsonSchema": {
     "bsonType": "object",
@@ -39,11 +38,22 @@ users_validation = {
 
 
 def create_users_collection(database: pymongo.database.Database) -> None:
+    """
+    Create new collection of "users"
+    :param database: connected mongodb database
+    :return: None
+    """
     if database.list_collection_names().count("users") == 0:
         database.create_collection("users", validator=users_validation)
 
 
 def add_random_user(database: pymongo.database.Database) -> None:
+    """
+    Adds random user  generated with Faker for testing purposes.
+    Login for generated user is impossible because of randomly generated and unrelated salt and hashed password
+    :param database: connected mongodb database
+    :return: None
+    """
     if database.list_collection_names().count("users") == 0:
         raise RuntimeError("There is no \"users\" collection")
 

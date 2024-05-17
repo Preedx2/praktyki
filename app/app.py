@@ -11,8 +11,15 @@ import app.auth as auth
 
 
 class Application:
+    """
+    Main class of the application, handles user requests and manages database connection
+    """
     def __init__(self, environ, start_response):
-
+        """
+        Initiates environment and database connection
+        :param environ:
+        :param start_response:
+        """
         with open("mongodb-login", 'r') as file:
             _cluster = file.readline()[:-1]
             _login = file.readline()[:-1]
@@ -26,10 +33,20 @@ class Application:
         self.start_response = start_response
 
     def __del__(self):
+        """
+        Closes database connection
+        :return:
+        """
         if hasattr(self, 'client'):
             self.client.close()
 
     def list_all(self, collection: pymongo.collection.Collection) -> str:
+        """
+        Lists all entries in a collection, mostly for test purposes
+        :param collection: collection from the database
+        :return: string of all entries in bson format, hard to read for humans
+        """
+
         cursor = collection.find({})
         records = [record for record in cursor]
         output = dumps(records, sort_keys=True, indent=4, separators=(',', ': '))
@@ -37,6 +54,11 @@ class Application:
         return output
 
     def __iter__(self):
+        """
+        Iterator handles request given from the server.py
+        Handles most of the exceptions
+        :return: response to the server
+        """
         path = self.environ['PATH_INFO']
         method = self.environ['REQUEST_METHOD']
         post_input = {}
