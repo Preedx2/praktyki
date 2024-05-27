@@ -58,6 +58,10 @@ class Database:
         """
         collection = self.database.get_collection(collection_name)
         return collection.find_one(query)
+    
+    def random_one(self, collection_name: str) -> dict:
+        collection = self.database.get_collection(collection_name)
+        return dict(collection.aggregate({"$sample": {"size": 1}}))
 
     def find_one_and_update(self, collection_name: str, query: dict, update: dict) -> dict:
         """
