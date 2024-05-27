@@ -4,6 +4,7 @@ import jwt
 
 import source.auth as auth
 from source.database import Database
+import source.collections.articles as articles
 
 
 class Application:
@@ -49,6 +50,16 @@ class Application:
                 response = b"Inserted random user"
                 status = "200 OK"
             case "/get_users":
+                response = self.database.list_all("users").encode()
+                status = "200 OK"
+            case "/create_articles":
+                articles.create_articles_collection(self.database.database)
+                status = "200 OK"
+            case "/insert_random_art":
+                self.database.add_random_article()
+                response = b"Inserted random article"
+                status = "200 OK"
+            case "/get_articles":
                 response = self.database.list_all("users").encode()
                 status = "200 OK"
             case "/register":

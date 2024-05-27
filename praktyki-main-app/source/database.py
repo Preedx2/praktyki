@@ -4,6 +4,7 @@ from pymongo.server_api import ServerApi
 from bson.json_util import dumps
 
 import source.collections.users as users
+import source.collections.articles as articles
 
 
 class Database:
@@ -48,6 +49,9 @@ class Database:
     def add_random_user(self) -> None:
         users.add_random_user(self.database)
 
+    def add_random_article(self) -> None:
+        articles.add_random_article(self.database)
+
     def search(self, collection_name: str, query: dict) -> dict:
         """
         searches for one instance of query in collection collection_name
@@ -58,7 +62,7 @@ class Database:
         """
         collection = self.database.get_collection(collection_name)
         return collection.find_one(query)
-    
+
     def random_one(self, collection_name: str) -> dict:
         collection = self.database.get_collection(collection_name)
         return dict(collection.aggregate({"$sample": {"size": 1}}))
