@@ -7,6 +7,6 @@ if __name__ == "__main__":
         port=8000,
         app=Application
     )
-    print("Starting server...")
+    print("Server started", flush=True)
     server.serve_forever()
 
