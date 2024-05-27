@@ -1,0 +1,10 @@
+version: '3.2'
+
+services:
+  praktyki-main-app:
+    build: ./praktyki-main-app
+    container_name: praktyki-main-app
+    volumes:
+      - ./praktyki-main-app:/app    # binduje folder z hosta do /app w kontenerze
+    ports:
+      - 8000:8000
