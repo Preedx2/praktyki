@@ -51,6 +51,7 @@ def add_random_user(database: pymongo.database.Database) -> None:
     """
     Adds random user  generated with Faker for testing purposes.
     Login for generated user is impossible because of randomly generated and unrelated salt and hashed password
+    Raises runtime error when users database has not been initialized
     :param database: connected mongodb database
     :return: None
     """

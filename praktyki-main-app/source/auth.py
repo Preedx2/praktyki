@@ -8,6 +8,8 @@ import pymongo.collection
 import jwt
 from cryptography.hazmat.primitives import serialization
 
+from source.database import Database
+
 
 # TODO make config file for environmental variables
 # regex for recognizing email
@@ -28,32 +30,32 @@ def authenticate(token) -> str:
     return payload["username"]
 
 
-def login(login_str: str, password: str, users: pymongo.collection.Collection) -> str:
+def login(login_str: str, password: str, database: Database) -> str:
     """
     Login existing user into the application.
     :param login_str: either username or email - application automatically recognizes which one
     :param password: password
-    :param users: collection of users from the database
+    :param database: database connection object
     :return: encoded jwt token authenticating user for 8 hours
     """
     if re.fullmatch(REGEX_EMAIL, login_str):
-        user = users.find_one({"email": login_str})
+        user = database.search("users", {"email": login_str})
     else:
-        user = users.find_one({"username": login_str})
+        user = database.search("users", {"username": login_str})
 
     if not user:
         raise ValueError(f"There is no user identified by {login_str}")
 
     salt = user.get("salt")
-    start = time.time_ns()
+    # start = time.time_ns()
     hashed_pswd = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, HASH_ITERS)
-    end = time.time_ns()
+    # end = time.time_ns()
     # print(f"Hashing time: {end-start} ns")
     if user.get("password") != hashed_pswd:
         raise ValueError(f"Invalid password")
 
-    users.find_one_and_update({"_id": user.get("_id")},
-                              {"$set": {"last_login": datetime.datetime.now()}})
+    database.find_one_and_update("users", {"_id": user.get("_id")},
+                                {"$set": {"last_login": datetime.datetime.now()}})
 
     private_key = open('.ssh/id_rsa', 'r').read()
     key = serialization.load_ssh_private_key(private_key.encode(), password=b'')
@@ -71,13 +73,13 @@ def login(login_str: str, password: str, users: pymongo.collection.Collection) -
     return token
 
 
-def register(username: str, email: str, password: str, users: pymongo.collection.Collection) -> None:
+def register(username: str, email: str, password: str, database: Database) -> None:
     """
     Register new user and insert him to the database. Function also handles validation
     :param username: string between 3 and 64 characters, must be unique and cannot be a valid email address
     :param email: string no longer than 256 characters, must be unique and a valid email address
     :param password: string between 8 and 64 characters
-    :param users: collection of users from the database
+    :param database: database connection object
     :return: None
     """
     if not re.fullmatch(REGEX_EMAIL, email):
@@ -92,15 +94,15 @@ def register(username: str, email: str, password: str, users: pymongo.collection
     if len(email) > 256:
         raise ValueError("Email address cannot exceed 256 characters")
 
-    if users.find_one({"username": username}):
+    if database.search("users", {"username": username}):
         raise ValueError("Username already taken")
-    if users.find_one({"email": email}):
+    if database.search("users", {"email": email}):
         raise ValueError("Email already in use")
 
     salt = os.urandom(32)
     hashed_pswd = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, HASH_ITERS)
 
-    users.insert_one({
+    database.insert("users", {
         "username": username,
         "email": email,
         "password": hashed_pswd,
@@ -110,7 +112,7 @@ def register(username: str, email: str, password: str, users: pymongo.collection
     })
 
 
-def reset_password(email: str, new_password: str, users: pymongo.collection.Collection) -> None:
+def reset_password(email: str, new_password: str, database: Database) -> None:
     """
     Function for resetting password of user with specified email address.
 
@@ -118,10 +120,10 @@ def reset_password(email: str, new_password: str, users: pymongo.collection.Coll
     :param email: string with email of an existing user
     :param new_password: string with new user password - can be the same as previous password,
     in that case change will result in generation of new salt and hashed password
-    :param users: collection of users from the database
+    :param database: database connection object
     :return: None
     """
-    user = users.find_one({"email": email})  # in real life it should be controlled by tokenized emails
+    user = database.search("users", {"email": email})  # in real life it should be controlled by tokenized emails
 
     if not user:
         raise ValueError(f"There is no user identified by {email}")
@@ -132,5 +134,5 @@ def reset_password(email: str, new_password: str, users: pymongo.collection.Coll
     salt = os.urandom(32)
     hashed_pswd = hashlib.pbkdf2_hmac('sha512', new_password.encode('utf-8'), salt, HASH_ITERS)
 
-    users.find_one_and_update({"_id": user.get("_id")},
-                              {"$set": {"password": hashed_pswd, "salt": salt}})
+    database.find_one_and_update("users", {"_id": user.get("_id")},
+                                {"$set": {"password": hashed_pswd, "salt": salt}})
