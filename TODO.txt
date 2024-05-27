@@ -2,8 +2,6 @@ napisać obsługę rządań jako inną klasę - dekoratory, event handlery itp -
 
 rozdzielić logikę bazy od logiki obsługi użytkownika
 
-docker-compose zamiast dockerfile
-
 
 
     nie działa na 127.0.0.1

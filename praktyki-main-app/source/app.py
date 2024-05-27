@@ -1,18 +1,14 @@
 import json
 
 import jwt
-import pymongo.collection
-from pymongo import MongoClient
-from pymongo.server_api import ServerApi
-from bson.json_util import dumps
 
-import source.collections.users as users
 import source.auth as auth
+from source.database import Database
 
 
 class Application:
     """
-    Main class of the application, handles user requests and manages database connection
+    Main class of the application, handles user requests
     """
     def __init__(self, environ, start_response):
         """
@@ -20,38 +16,10 @@ class Application:
         :param environ:
         :param start_response:
         """
-        with open("mongodb-login", 'r') as file:
-            _cluster = file.readline()[:-1]
-            _login = file.readline()[:-1]
-            _password = file.readline()[:-1]
-
-        uri = f"mongodb+srv://{_login}:{_password}@{_cluster}.mongodb.net/?retryWrites=true&w=majority&appName=praktyki0"
-        self.client = MongoClient(uri, server_api=ServerApi('1'))
-        self.database = self.client.get_database("praktyki_app_db")
-
         self.environ = environ
         self.start_response = start_response
 
-    def __del__(self):
-        """
-        Closes database connection
-        :return:
-        """
-        if hasattr(self, 'client'):
-            self.client.close()
-
-    def list_all(self, collection: pymongo.collection.Collection) -> str:
-        """
-        Lists all entries in a collection, mostly for test purposes
-        :param collection: collection from the database
-        :return: string of all entries in bson format, hard to read for humans
-        """
-
-        cursor = collection.find({})
-        records = [record for record in cursor]
-        output = dumps(records, sort_keys=True, indent=4, separators=(',', ': '))
-        # print(output)
-        return output
+        self.database = Database()
 
     def __iter__(self):
         """
@@ -77,28 +45,26 @@ class Application:
         response = b"501 Not Implemented"
         match path:
             case "/insert_random_user":
-                users.add_random_user(self.database)
+                self.database.add_random_user()
                 response = b"Inserted random user"
                 status = "200 OK"
             case "/get_users":
-                collection = self.database.get_collection("users")
-                response = self.list_all(collection).encode()
+                response = self.database.list_all("users").encode()
                 status = "200 OK"
             case "/register":
                 if method == "POST":
                     try:
-                        collection = self.database.get_collection("users")
                         auth.register(
                                 post_input["username"],
                                 post_input["email"],
                                 post_input["password"],
-                                collection
+                                self.database
                             )
                         response = b"Successful registration"
                         status = "200 OK"
                     except Exception as e:
                         print(e)
-                        response = f"Error of type: {type(e)}".encode()
+                        response = f"Error: {e}".encode()
                         status = "400 Bad Request"
                 else:
                     response = b"405 Method not allowed"
@@ -106,11 +72,10 @@ class Application:
             case "/login":
                 if method == "POST":
                     try:
-                        collection = self.database.get_collection("users")
                         response = auth.login(
                             post_input["login_str"],
                             post_input["password"],
-                            collection
+                            self.database
                         ).encode()
                         status = "200 OK"
                     except Exception as e:
@@ -123,11 +88,10 @@ class Application:
             case "/reset_password":
                 if method == "POST":
                     try:
-                        collection = self.database.get_collection("users")
                         auth.reset_password(
                             post_input["email"],
                             post_input["new_password"],
-                            collection
+                            self.database
                         )
                         response = b"Password changed successfully"
                         status = "200 OK"
@@ -146,7 +110,7 @@ class Application:
                 except (jwt.exceptions.ExpiredSignatureError, jwt.exceptions.InvalidSignatureError) as e:
                     response = f"{e}".encode()
                     status = "403 Forbidden"
-                except (jwt.exceptions.DecodeError):
+                except jwt.exceptions.DecodeError:
                     response = b"You need to be authenticated to access this page"
                     status = "403 Forbidden"
             case _:
