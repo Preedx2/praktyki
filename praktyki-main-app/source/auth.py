@@ -39,9 +39,9 @@ def login(login_str: str, password: str, database: Database) -> str:
     :return: encoded jwt token authenticating user for 8 hours
     """
     if re.fullmatch(REGEX_EMAIL, login_str):
-        user = database.search("users", {"email": login_str})
+        user = database.search_one("users", {"email": login_str})
     else:
-        user = database.search("users", {"username": login_str})
+        user = database.search_one("users", {"username": login_str})
 
     if not user:
         raise ValueError(f"There is no user identified by {login_str}")
@@ -94,9 +94,9 @@ def register(username: str, email: str, password: str, database: Database) -> No
     if len(email) > 256:
         raise ValueError("Email address cannot exceed 256 characters")
 
-    if database.search("users", {"username": username}):
+    if database.search_one("users", {"username": username}):
         raise ValueError("Username already taken")
-    if database.search("users", {"email": email}):
+    if database.search_one("users", {"email": email}):
         raise ValueError("Email already in use")
 
     salt = os.urandom(32)
@@ -123,7 +123,7 @@ def reset_password(email: str, new_password: str, database: Database) -> None:
     :param database: database connection object
     :return: None
     """
-    user = database.search("users", {"email": email})  # in real life it should be controlled by tokenized emails
+    user = database.search_one("users", {"email": email})  # in real life it should be controlled by tokenized emails
 
     if not user:
         raise ValueError(f"There is no user identified by {email}")

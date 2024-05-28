@@ -1,10 +1,6 @@
 import pymongo.collection
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-from bson.json_util import dumps
-
-import source.collections.users as users
-import source.collections.articles as articles
 
 
 class Database:
@@ -33,7 +29,7 @@ class Database:
         if hasattr(self, 'client'):
             self.client.close()
 
-    def list_all(self, collection_name: str) -> str:
+    def list_all(self, collection_name: str) -> list[dict]:
         """
         Lists all entries in a collection, mostly for test purposes
         :param collection_name: name of collection from database
@@ -42,17 +38,9 @@ class Database:
         collection = self.database.get_collection(collection_name)
         cursor = collection.find({})
         records = [record for record in cursor]
-        output = f"<pre>{dumps(records, sort_keys=True, indent=4, separators=(',', ': '))}</pre"
+        return records
 
-        return output
-
-    def add_random_user(self) -> None:
-        users.add_random_user(self.database)
-
-    def add_random_article(self) -> None:
-        articles.add_random_article(self.database)
-
-    def search(self, collection_name: str, query: dict) -> dict:
+    def search_one(self, collection_name: str, query: dict) -> dict:
         """
         searches for one instance of query in collection collection_name
         @param collection_name: name of the collection to search, str
@@ -63,9 +51,39 @@ class Database:
         collection = self.database.get_collection(collection_name)
         return collection.find_one(query)
 
-    def random_one(self, collection_name: str) -> dict:
+    def search_all(self, collection_name: str, query: dict) -> list[dict]:
+        """
+        searches for all instances of query in collection collection_name
+        @param collection_name: name of the collection to search, str
+        @param query: query to search - dict consisting of key: value pairs
+        @return: dict with all attributes of an object satisfying query result,
+                or empty dictionary if query was unsuccessful
+        """
+        results = []
         collection = self.database.get_collection(collection_name)
-        return dict(collection.aggregate({"$sample": {"size": 1}}))
+        for result in collection.find(query):
+            results.append(result)
+
+        return results
+
+    def count(self, collection_name: str, query: dict) -> int:
+        """
+        counts all instances of query in collection collection_name
+        @param collection_name: name of the collection to search, str
+        @param query: query to search - dict consisting of key: value pairs
+        @return: number of objects satisfying query in collection
+        """
+        collection = self.database.get_collection(collection_name)
+        return collection.count_documents(query)
+
+    def random_one(self, collection_name: str) -> dict:
+        """
+        retrieves random object from collection
+        @param collection_name: name of the collection to retrieve sample from
+        @return: object from the collection in dictionary key: value form
+        """
+        collection = self.database.get_collection(collection_name)
+        return list(collection.aggregate([{"$sample": {"size": 1}}]))[0]
 
     def find_one_and_update(self, collection_name: str, query: dict, update: dict) -> dict:
         """

@@ -1,10 +1,15 @@
 import json
+from datetime import datetime
 
 import jwt
+from bson import ObjectId
+from bson.json_util import dumps
 
 import source.auth as auth
+from source.collections.users import User
+from source.collections.articles import Article
+from source.collections.comments import Comment
 from source.database import Database
-import source.collections.articles as articles
 
 
 class Application:
@@ -45,22 +50,81 @@ class Application:
         status = "501 Not Implemented"
         response = b"501 Not Implemented"
         match path:
+            case "/test":
+                art = Article.create_random_article(self.database)
+                print(art.author)
+                print(type(art.author.get("id")), flush=True)
+
             case "/insert_random_user":
-                self.database.add_random_user()
+                User.add_random_user(self.database)
                 response = b"Inserted random user"
                 status = "200 OK"
             case "/get_users":
-                response = self.database.list_all("users").encode()
+                response = response = f"<pre>{dumps(self.database.list_all("users"), 
+                                         sort_keys=True, indent=4, separators=(',', ': '))}</pre>".encode()
                 status = "200 OK"
-            case "/create_articles":
-                articles.create_articles_collection(self.database.database)
-                status = "200 OK"
+            case "/create_article":
+                if method == "POST":
+                    if auth_token:
+                        user_name = auth.authenticate(auth_token)
+                        user = self.database.search_one("users", {"username": user_name})
+                        art = Article(
+                            post_input["title"],
+                            post_input["text"],
+                            datetime.now(),
+                            user.get("_id"),
+                            user_name,
+                            user.get("email")
+                        )
+                        self.database.insert("articles", art.json)
+                        response = b"Article added"
+                        status = "200 OK"
+                    else:
+                        response = b"You need to log in before posting an Article"
+                        status = "403 Forbidden"
+            case "/add_comment":
+                if method == "POST":
+                    if auth_token:
+                        user_name = auth.authenticate(auth_token)
+                        user = self.database.search_one("users", {"username": user_name})
+                        try:
+                            self.database.search_one("articles", {"_id": post_input["article_id"]})
+                            comment = Comment(
+                                ObjectId(post_input["article_id"]),
+                                post_input["text"],
+                                datetime.now(),
+                                user.get("_id"),
+                                user_name,
+                                user.get("email")
+                            )
+                            self.database.insert("comments", comment.json)
+                            response = b"Comment added"
+                            status = "200 OK"
+                        except:
+                            response = b"Article id not recognized"
+                            status = "400 Bad Request"
+                    else:
+                        response = b"You need to log in before posting a comment"
+                        status = "403 Forbidden"
             case "/insert_random_art":
-                self.database.add_random_article()
+                self.database.insert("articles", Article.create_random_article(self.database).json)
                 response = b"Inserted random article"
                 status = "200 OK"
+            case "/get_articles_comentless":
+                articles = self.database.list_all("articles")
+                for article in articles:
+                    del article["text"]
+                response = f"<pre>{dumps(articles, sort_keys=True, indent=2, separators=(',', ': '))}</pre>".encode()
+                status = "200 OK"
+            case "/insert_random_comment":
+                self.database.insert("comments", Comment.create_random_comment(self.database).json)
+                response = b"Inserted random comment"
+                status = "200 OK"
             case "/get_articles":
-                response = self.database.list_all("users").encode()
+                articles = self.database.list_all("articles")
+                for article in articles:
+                    article["comment_count"] = self.database.count("comments", {"article_id": article.get("_id")})
+                response = f"<pre>{dumps(articles, sort_keys=True, indent=2, separators=(',', ': '))}</pre>".encode()
                 status = "200 OK"
             case "/register":
                 if method == "POST":

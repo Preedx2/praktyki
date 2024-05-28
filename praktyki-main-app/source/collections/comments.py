@@ -3,22 +3,23 @@ from datetime import datetime
 
 import pymongo.database
 from faker import Faker
+from bson.objectid import ObjectId
 
 from source.database import Database
-from source.collections.users import User
+# from source.collections.users import User
 
 
-class Article:
+class Comment:
     # Validation schema for 'articles' collection
     # currently not working
     validation = {
       "$jsonSchema": {
         "bsonType": "object",
         "title": "Articles schema validation",
-        "required": [ "title", "text", "date_created", "author"],
+        "required": [ "article_id", "text", "date_created", "author"],
         "properties": {
-          "title": {
-            "bsonType": "string"
+          "article_id": {
+            "bsonType": "objectId"
           },
           "text": {
             "bsonType": "string"
@@ -41,9 +42,10 @@ class Article:
       }
     }
 
-    def __init__(self, title: str, text: str, date_created: datetime, author_id, author_username, author_email):
+    def __init__(self, article_id: ObjectId, text: str, date_created: datetime,
+                 author_id: ObjectId, author_username: str, author_email: str):
         self.json = {
-            "title": title,
+            "article_id": article_id,
             "text": text,
             "date_created": date_created,
             "author": {
@@ -54,8 +56,8 @@ class Article:
         }
 
     @property
-    def title(self) -> str:
-        return self.json["title"]
+    def article_id(self) -> ObjectId:
+        return self.json["article_id"]
 
     @property
     def text(self) -> str:
@@ -70,28 +72,38 @@ class Article:
         return self.json["author"]
 
     @staticmethod
-    def create_articles_collection(database: pymongo.database.Database) -> None:
+    def create_comments_collection(database: pymongo.database.Database) -> None:
         """
-        Create new collection of "articles"
+        Create new collection of "comments"
         :param database: connected mongodb database
         :return: None
         """
-        if database.list_collection_names().count("articles") == 0:
-            database.create_collection("articles", validator=Article.validation)
+        if database.list_collection_names().count("comments") == 0:
+            database.create_collection("comments", validator=Comment.validation)
 
     @staticmethod
-    def create_random_article(database: Database) -> Article:
+    def create_random_comment(database: Database) -> Comment:
         """
-        Adds random article generated with Faker for testing purposes.
-        User gets randomly sellected from existing collection of users
+        Adds random comment generated with Faker for testing purposes.
+        User and article get randomly sellected from existing collections
         :param database: connected mongodb database
         :return: None
         """
 
         author = database.random_one("users")
+        article = database.random_one("articles")
         fake = Faker()
-        return Article(fake.sentence(), fake.paragraph(nb_sentences=10), fake.date_time(),
+        return Comment(article.get("_id"), fake.paragraph(nb_sentences=2), fake.date_time(),
                        author.get("_id"), author.get("username"), author.get("email"))
 
-
+        # database.insert("articles", {
+        #     "title": fake.sentence(),
+        #     "text": fake.paragraph(nb_sentences=10),
+        #     "date_created": fake.date_time(),
+        #     "author": {
+        #       "id": author.get("_id"),
+        #       "username": author.get("username"),
+        #       "email": author.get("email")
+        #     }
+        # })
 
