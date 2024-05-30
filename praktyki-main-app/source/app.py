@@ -6,13 +6,14 @@ from source.auth import Auth
 from source.database import Database
 from source.handler import Handler
 from source.utils import HTTP_STATUS
+from source.collections.forbidden_phrases import ForbiddenPhrase
+from source.collections.articles import Article
 
-
-def access_method(func: callable, allowed: list[str], method: str):
-    if method in allowed:
-        return func
-    else:
-        raise ex.MethodNotAllowedException(allowed)
+# def access_method(func: callable, allowed: list[str], method: str):
+#     if method in allowed:
+#         return func
+#     else:
+#         raise ex.MethodNotAllowedException(allowed)
 
 
 class Application:
@@ -96,7 +97,14 @@ class Application:
                             raise ex.NotLoggedInException
                     else:
                         raise ex.MethodNotAllowedException("POST")
-
+                case "/add_forbidden":
+                    if method == "POST":
+                        if auth_token:
+                            response, status = self.handle.add_forbidden(post_input)
+                        else:
+                            raise ex.NotLoggedInException
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
                 case "/register":
                     if method == "POST":
                         response, status = self.handle.register(post_input)
@@ -114,6 +122,10 @@ class Application:
                         raise ex.MethodNotAllowedException("POST")
                 case "/protected":
                     response, status = b"dupa", "zupa"
+                case "/get_forbidden":
+                    pass
+                case "/edit_forbidden":
+                    pass
                 case _:
                     response = b"404 Not Found"
                     status = HTTP_STATUS[404]

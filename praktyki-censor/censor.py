@@ -1,5 +1,3 @@
-import time
-
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
@@ -17,39 +15,52 @@ class Censor:
         self.comments = database["comments"]
 
         self.pipeline = [
-            {"$match": {"operationType": "insert"}},
+            {"$match": {"operationType": {'$in': ['insert', 'update']}}},
         ]
 
         self.phrases = ["kupa", "dupa"]
+        self.replacement = "[REDACTED]"
+
+        for phrase in self.phrases:
+            if phrase in self.replacement:
+                raise RuntimeError(f"Forbidden phrase {phrase} found in replacement phrase {self.replacement}."
+                                   f"Cannot start censorship listener because of risk of cascade")
 
     def __del__(self):
         if hasattr(self, 'client'):
             self.client.close()
 
-    def process_text(self, comment) -> None:
-
-        replacement = "[REDACTED]"
-        new_text = comment.get("text")
+    def process_text(self, text, comment_id):
+        changes = False
+        new_text = text
         for phrase in self.phrases:
             if phrase in new_text:
-                new_text = new_text.replace(phrase, replacement)
-                print(f"Replaced forbidden phrase {phrase} in comment {comment.get("_id")}", flush=True)
-        self.comments.update_one({'_id': comment.get("_id")},
-                                 {"$set": {"text": new_text}})
+                new_text = new_text.replace(phrase, self.replacement)
+                changes = True
+                print(f"Replaced forbidden phrase {phrase} in comment {comment_id}", flush=True)
+        if changes:
+            self.comments.update_one({'_id': comment_id}, {"$set": {"text": new_text}})
 
     def listen(self):
         with self.comments.watch(self.pipeline) as stream:
             print("Listening for inserts in comments collection...", flush=True)
             for change in stream:
-                self.process_text(change.get("fullDocument"))
+                if change.get("operationType") == 'insert':
+                    text = change.get("fullDocument").get("text")
+                    comment_id = change.get("fullDocument").get("_id")
+                else:
+                    text = change.get("updateDescription").get("updatedFields").get("text")
+                    comment_id = change.get("documentKey").get("_id")
+
+                self.process_text(text, comment_id)
 
 
 if __name__ == "__main__":
-    censor = Censor()
     try:
+        censor = Censor()
         while True:
             censor.listen()
     except KeyboardInterrupt:
         print("Listener has been manually shutdown")
-
-
+    except RuntimeError as e:
+        print(e)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
 
-import pymongo.database
 from faker import Faker
 
 from source.database import Database
@@ -11,33 +10,40 @@ class Article:
     # Validation schema for 'articles' collection
     # currently not working
     validation = {
-      "$jsonSchema": {
-        "bsonType": "object",
-        "title": "Articles schema validation",
-        "required": [ "title", "text", "date_created", "author"],
-        "properties": {
-          "title": {
-            "bsonType": "string"
-          },
-          "text": {
-            "bsonType": "string"
-          },
-          "date_created": {
-            "bsonType": "date"
-          },
-          "author": [{
-            "id": {
-              "bsonType": "objectId"
-            },
-            "username": {
-              "bsonType": "string"
-            },
-            "email": {
-              "bsonType": "string"
+        "$jsonSchema": {
+            "bsonType": "object",
+            "title": "Articles schema validation",
+            "required": ["title", "text", "date_created", "author"],
+            "properties": {
+                "title": {
+                    "bsonType": "string"
+                },
+                "text": {
+                    "bsonType": "string"
+                },
+                "date_created": {
+                    "bsonType": "date"
+                },
+                "author": {
+                    "bsonType": "array",
+                    "items": {
+                        "bsonType": "object",
+                        "required": ["id", "username", "email"],
+                        "properties": {
+                            "id": {
+                                "bsonType": "objectId"
+                            },
+                            "username": {
+                                "bsonType": "string"
+                            },
+                            "email": {
+                                "bsonType": "string"
+                            }
+                        }
+                    }
+                }
             }
-          }]
         }
-      }
     }
 
     def __init__(self, title: str, text: str, date_created: datetime, author_id, author_username, author_email):
@@ -69,14 +75,13 @@ class Article:
         return self.json["author"]
 
     @staticmethod
-    def create_articles_collection(database: pymongo.database.Database) -> None:
+    def create_collection(database: Database) -> None:
         """
-        Create new collection of "articles"
+        Create new collection of "forbidden_phrases"
         :param database: connected mongodb database
         :return: None
         """
-        if database.list_collection_names().count("articles") == 0:
-            database.create_collection("articles", validator=Article.validation)
+        database.create_collection("articles2", Article.validation)
 
     @staticmethod
     def create_random_article(database: Database) -> Article:

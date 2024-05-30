@@ -9,6 +9,7 @@ import source.exceptions as ex
 from source.collections.users import User
 from source.collections.articles import Article
 from source.collections.comments import Comment
+from source.collections.forbidden_phrases import ForbiddenPhrase
 from source.database import Database
 from source.utils import HTTP_STATUS, jsonify
 
@@ -37,17 +38,17 @@ class Handler:
         if isinstance(error, ValueError):
             status = HTTP_STATUS[400]
         elif isinstance(error, jwt.exceptions.ExpiredSignatureError):
-            # response = b"Your authentication has expired"
+            response = b"Your authentication has expired"
             status = HTTP_STATUS[401]
         elif isinstance(error, ex.NotLoggedInException):
             status = HTTP_STATUS[403]
         elif isinstance(error, ex.MethodNotAllowedException):
             status = HTTP_STATUS[405]
         else:
-            # response = b"An error has occurred"
+            response = b"An error has occurred"
             status = HTTP_STATUS[500]
         traceback.print_exc()
-        # print(error.__traceback__, flush=True)
+
         return response, status
 
     def insert_random_article(self) -> (bytes, str):
@@ -153,6 +154,15 @@ class Handler:
         )
         self.database.insert("comments", comment.json)
         response = b"Comment added"
+        status = HTTP_STATUS[201]
+        return response, status
+
+    def add_forbidden(self, post_input: dict) -> (bytes, str):
+        if self.database.search_one("forbidden_phrases", {"phrase": post_input["phrase"]}):
+            raise ValueError("Phrase already present in forbidden phrases collection")
+
+        self.database.insert("forbidden_phrases", ForbiddenPhrase(post_input["phrase"]).json)
+        response = b"Forbidden phrase added"
         status = HTTP_STATUS[201]
         return response, status
 

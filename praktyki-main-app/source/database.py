@@ -105,3 +105,10 @@ class Database:
         """
         collection = self.database.get_collection(collection_name)
         collection.insert_one(object_dict)
+
+    def create_collection(self, name: str, validator: dict = None) -> None:
+        if validator is None:
+            validator = {}
+        if self.database.list_collection_names().count(name) == 0:
+            self.database.create_collection(name, validator=validator)
+
