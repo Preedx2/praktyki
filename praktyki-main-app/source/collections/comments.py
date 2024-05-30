@@ -6,11 +6,10 @@ from faker import Faker
 from bson.objectid import ObjectId
 
 from source.database import Database
-# from source.collections.users import User
 
 
 class Comment:
-    # Validation schema for 'articles' collection
+    # Validation schema for 'comments' collection
     # currently not working
     validation = {
       "$jsonSchema": {
