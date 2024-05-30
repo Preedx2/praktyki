@@ -8,3 +8,10 @@ services:
       - ./praktyki-main-app:/app    # binduje folder z hosta do /app w kontenerze
     ports:
       - 8000:8000
+
+  praktyki-censor:
+    build: ./praktyki-censor
+    container_name: praktyki-censor
+    volumes:
+      - ./praktyki-censor:/censor
+
