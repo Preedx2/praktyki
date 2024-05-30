@@ -1,14 +1,23 @@
 import json
+from urllib import parse
 
-import jwt
-
-import source.auth as auth
+import source.exceptions as ex
+from source.auth import Auth
 from source.database import Database
+from source.handler import Handler
+from source.utils import HTTP_STATUS
+
+
+def access_method(func: callable, allowed: list[str], method: str):
+    if method in allowed:
+        return func
+    else:
+        raise ex.MethodNotAllowedException(allowed)
 
 
 class Application:
     """
-    Main class of the application, handles user requests
+    Main class of the application, routes user requests
     """
     def __init__(self, environ, start_response):
         """
@@ -18,23 +27,21 @@ class Application:
         """
         self.environ = environ
         self.start_response = start_response
+        self.auth = Auth()
 
         self.database = Database()
+        self.handle = Handler(self.database)
 
     def __iter__(self):
         """
         Iterator handles request given from the server.py
-        Handles most of the exceptions
         :return: response to the server
         """
         print("Received http request")
         path = self.environ['PATH_INFO']
+
         method = self.environ['REQUEST_METHOD']
-
-        auth_token = None
-        if 'HTTP_AUTH' in self.environ:
-            auth_token = self.environ['HTTP_AUTH']
-
+        get_input = parse.parse_qs(self.environ['QUERY_STRING'])
         post_input = {}
         if method == "POST":
             input_obj = self.environ['wsgi.input']
@@ -43,83 +50,80 @@ class Application:
 
         status = "501 Not Implemented"
         response = b"501 Not Implemented"
-        match path:
-            case "/insert_random_user":
-                self.database.add_random_user()
-                response = b"Inserted random user"
-                status = "200 OK"
-            case "/get_users":
-                response = self.database.list_all("users").encode()
-                status = "200 OK"
-            case "/register":
-                if method == "POST":
-                    try:
-                        auth.register(
-                                post_input["username"],
-                                post_input["email"],
-                                post_input["password"],
-                                self.database
-                            )
-                        response = b"Successful registration"
-                        status = "200 OK"
-                    except Exception as e:
-                        print(e)
-                        response = f"Error: {e}".encode()
-                        status = "400 Bad Request"
-                else:
-                    response = b"405 Method not allowed"
-                    status = "405 Method not allowed"
-            case "/login":
-                if method == "POST":
-                    try:
-                        response = auth.login(
-                            post_input["login_str"],
-                            post_input["password"],
-                            self.database
-                        ).encode()
-                        status = "200 OK"
-                    except Exception as e:
-                        print(e)
-                        response = f"Error of type: {type(e)}".encode()
-                        status = "400 Bad Request"
-                else:
-                    response = b"405 Method not allowed"
-                    status = "405 Method not allowed"
-            case "/reset_password":
-                if method == "POST":
-                    try:
-                        auth.reset_password(
-                            post_input["email"],
-                            post_input["new_password"],
-                            self.database
-                        )
-                        response = b"Password changed successfully"
-                        status = "200 OK"
-                    except Exception as e:
-                        print(e)
-                        response = f"Error of type: {type(e)}".encode()
-                        status = "400 Bad Request"
-                else:
-                    response = b"405 Method not allowed"
-                    status = "405 Method not allowed"
-            case "/protected":
-                try:
-                    name = auth.authenticate(auth_token)
-                    response = f"Welcome {name}".encode()
-                    status = "200 OK"
-                except (jwt.exceptions.ExpiredSignatureError, jwt.exceptions.InvalidSignatureError) as e:
-                    response = f"{e}".encode()
-                    status = "403 Forbidden"
-                except jwt.exceptions.DecodeError:
-                    response = b"You need to be authenticated to access this page"
-                    status = "403 Forbidden"
-            case _:
-                response = b"404 Not Found"
-                status = "404 Not Found"
+        try:
+            auth_token = None
+            username = None
+            if 'HTTP_AUTH' in self.environ:
+                auth_token = self.environ['HTTP_AUTH']
+                username = self.auth.authenticate(auth_token)
+
+            match path:
+                case "/test":
+                    pass
+                case "/":
+                    response = b"Index"
+                    status = HTTP_STATUS[200]
+                case "/insert_random_user":
+                    response, status = self.handle.insert_random_user()
+                case "/insert_random_art":
+                    response, satus = self.handle.insert_random_article()
+                case "/insert_random_comment":
+                    response, status = self.handle.insert_random_comment()
+                case "/get_articles":
+                    response, status = self.handle.get_articles()
+                case "/get_articles_textless":
+                    response, status = self.handle.get_articles_textless()
+                case "/get_article":
+                    if get_input is not None:
+                        response, status = self.handle.get_article(get_input)
+                    else:
+                        response, status = b'', HTTP_STATUS[204]
+                case "/get_users":
+                    response, status = self.handle.get_users()
+                case "/add_article":
+                    if method == "POST":
+                        if auth_token:
+                            response, status = self.handle.add_article(username, post_input)
+                        else:
+                            raise ex.NotLoggedInException
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
+                case "/add_comment":
+                    if method == "POST":
+                        if auth_token:
+                            response, status = self.handle.add_comment(username, post_input)
+                        else:
+                            raise ex.NotLoggedInException
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
+
+                case "/register":
+                    if method == "POST":
+                        response, status = self.handle.register(post_input)
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
+                case "/login":
+                    if method == "POST":
+                        response, status = self.handle.login(post_input)
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
+                case "/reset_password":
+                    if method == "POST":
+                        response, status = self.handle.reset_password(post_input)
+                    else:
+                        raise ex.MethodNotAllowedException("POST")
+                case "/protected":
+                    response, status = b"dupa", "zupa"
+                case _:
+                    response = b"404 Not Found"
+                    status = HTTP_STATUS[404]
+        except Exception as error:
+            response, status = self.handle.error_handler(error)
+
         headers = [
             ("Content-Type", "text/html"),
             ("content-Length", str(len(response)))
         ]
-        self.start_response(status, headers)
 
+        self.start_response(status, headers)
         yield response
