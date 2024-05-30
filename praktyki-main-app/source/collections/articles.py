@@ -5,7 +5,6 @@ import pymongo.database
 from faker import Faker
 
 from source.database import Database
-from source.collections.users import User
 
 
 class Article:

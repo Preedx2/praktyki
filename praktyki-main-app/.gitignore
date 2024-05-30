@@ -162,3 +162,4 @@ cython_debug/
 # moje
 mongodb-login
 .ssh/
+.source/copy_app.py
