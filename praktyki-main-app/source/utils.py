@@ -4,8 +4,6 @@ HTTP_STATUS = {
     200: "200 OK",
     201: "201 Created",
     204: "204 No content",
-    303: "303 See Other",
-    304: "304 Not Modified",
     400: "400 Bad Request",
     401: "401 Unauthorized",
     403: "403 Forbidden",
@@ -15,6 +13,8 @@ HTTP_STATUS = {
     500: "500 Internal Server Error",
     501: "501 Not implemented",
 }
+
+DEVELOPMENT = True
 
 JSON_INDENT = 2     # how big are indents in generated JSON files
 JSON_SEPARATORS = (',', ': ')   # separators in generated JSON files

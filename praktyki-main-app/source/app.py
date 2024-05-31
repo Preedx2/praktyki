@@ -6,14 +6,6 @@ from source.auth import Auth
 from source.database import Database
 from source.handler import Handler
 from source.utils import HTTP_STATUS
-from source.collections.forbidden_phrases import ForbiddenPhrase
-from source.collections.articles import Article
-
-# def access_method(func: callable, allowed: list[str], method: str):
-#     if method in allowed:
-#         return func
-#     else:
-#         raise ex.MethodNotAllowedException(allowed)
 
 
 class Application:
@@ -131,7 +123,7 @@ class Application:
         if allowed is None:
             allowed = 'POST'
         if method not in allowed:
-            raise ex.MethodNotAllowedException(allowed)
+            raise ex.MethodNotAllowedError(allowed)
 
     @staticmethod
     def authorized_access(auth_token: str) -> None:
@@ -140,5 +132,5 @@ class Application:
         @param auth_token: authentication token from environment
         """
         if auth_token is None:
-            raise ex.NotLoggedInException
+            raise ex.NotLoggedInError
 

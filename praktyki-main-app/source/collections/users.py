@@ -9,6 +9,7 @@ from faker import Faker
 
 from source.auth import Auth
 from source.database import Database
+from source.exceptions import ValidationError
 from source.utils import REGEX_EMAIL, HASH_ITERS
 
 
@@ -96,7 +97,7 @@ class User:
             user = database.search_one("users", {"username": login_str})
 
         if not user:
-            raise ValueError(f"There is no user identified by {login_str}")
+            raise ValidationError(f"There is no user identified by {login_str}")
 
         salt = user.get("salt")
         # start = time.time_ns()
@@ -104,7 +105,7 @@ class User:
         # end = time.time_ns()
         # print(f"Hashing time: {end-start} ns")
         if user.get("password") != hashed_pswd:
-            raise ValueError(f"Invalid password")
+            raise ValidationError(f"Invalid password")
 
         database.find_one_and_update("users", {"_id": user.get("_id")},
                                      {"$set": {"last_login": datetime.datetime.now()}})
@@ -123,21 +124,21 @@ class User:
         :return: None
         """
         if not re.fullmatch(REGEX_EMAIL, email):
-            raise ValueError("Improper email format")
+            raise ValidationError("Improper email format")
         if re.fullmatch(REGEX_EMAIL, username):
-            raise ValueError("User name cannot be an email")
+            raise ValidationError("User name cannot be an email")
 
         if not 3 < len(username) < 64:
-            raise ValueError("Username needs to be between 3 and 64 characters long")
+            raise ValidationError("Username needs to be between 3 and 64 characters long")
         if not 8 < len(password) < 64:
-            raise ValueError("Password needs to be between 8 and 64 characters long")
+            raise ValidationError("Password needs to be between 8 and 64 characters long")
         if len(email) > 256:
-            raise ValueError("Email address cannot exceed 256 characters")
+            raise ValidationError("Email address cannot exceed 256 characters")
 
         if database.search_one("users", {"username": username}):
-            raise ValueError("Username already taken")
+            raise ValidationError("Username already taken")
         if database.search_one("users", {"email": email}):
-            raise ValueError("Email already in use")
+            raise ValidationError("Email already in use")
 
         salt = os.urandom(32)
         hashed_pswd = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, HASH_ITERS)
@@ -167,10 +168,10 @@ class User:
                                    {"email": email})  # in real life it should be controlled by tokenized emails
 
         if not user:
-            raise ValueError(f"There is no user identified by {email}")
+            raise ValidationError(f"There is no user identified by {email}")
 
         if not 8 < len(new_password) < 64:
-            raise ValueError("Password needs to be between 8 and 64 characters long")
+            raise ValidationError("Password needs to be between 8 and 64 characters long")
 
         salt = os.urandom(32)
         hashed_pswd = hashlib.pbkdf2_hmac('sha512', new_password.encode('utf-8'), salt, HASH_ITERS)

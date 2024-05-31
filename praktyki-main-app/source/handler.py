@@ -12,25 +12,25 @@ from source.collections.articles import Article
 from source.collections.comments import Comment
 from source.collections.forbidden_phrases import ForbiddenPhrase
 from source.database import Database
-from source.utils import HTTP_STATUS, jsonify
-
-
-# def access_method(func: callable, allowed: list[str], method: str):
-#     if method in allowed:
-#         return func
-#     else:
-#         raise ex.MethodNotAllowedException(allowed)
+from source.utils import HTTP_STATUS, DEVELOPMENT, jsonify
 
 
 class Handler:
+    """
+    Class for handling requests
+    """
 
     def __init__(self, database: Database):
+        """
+        stores database connection
+        @param database: donnection to database
+        """
         self.database = database
 
     @staticmethod
     def error_handler(error: Exception) -> (bytes, str):
         """
-        Method handling
+        Error handling
         @param error:
         @return: tuple of reponse containing error message encoded in bytes
             and status representing HTTP status in string
@@ -38,13 +38,16 @@ class Handler:
 
         response = str(error).encode()
         if isinstance(error, ValueError):
+            response = b"An ValueError has occured, check your input data for errors"
+            status = HTTP_STATUS[400]
+        elif isinstance(error, ex.ValidationError):
             status = HTTP_STATUS[400]
         elif isinstance(error, jwt.exceptions.ExpiredSignatureError):
             response = b"Your authentication has expired"
             status = HTTP_STATUS[401]
-        elif isinstance(error, ex.NotLoggedInException):
+        elif isinstance(error, ex.NotLoggedInError):
             status = HTTP_STATUS[403]
-        elif isinstance(error, ex.MethodNotAllowedException):
+        elif isinstance(error, ex.MethodNotAllowedError):
             status = HTTP_STATUS[405]
         elif isinstance(error, ServerSelectionTimeoutError):
             response = b"Error while connecting with database"
@@ -52,7 +55,8 @@ class Handler:
         else:
             response = b"An error has occurred"
             status = HTTP_STATUS[500]
-        traceback.print_exc()
+        if DEVELOPMENT:
+            traceback.print_exc()
 
         return response, status
 
@@ -87,6 +91,17 @@ class Handler:
         return response, status
 
     def get_article(self, get_input: dict) -> (bytes, str):
+        """
+        Get specific article by id. If request is malformed will return '{}' with 204 code.
+        Oldest comments will be retrieved first, by default loads 10 comments
+        @param get_input: GET query represented as dict, should have 'id' key pointing to
+            an article, can have 'comms' key indicating maximum number of comments to retrieve.
+            Excess information will be ignored
+        @return: tuple consisting of byte encoded, jsonified representation of an article from articles
+            collection, with attached associated comments (by default 10). If request is malformed
+            or id of an article is not found will return `{}`. If article was found code will be 200 ok,
+            if not it will be 204 No content
+        """
         if "id" not in get_input:
             return b"{}", HTTP_STATUS[204]
 
@@ -112,6 +127,10 @@ class Handler:
         return response, status
 
     def get_articles(self) -> (bytes, str):
+        """
+        get all articles with text and number of associated comments
+        @return: tuple of encoded jsonified articles representation and status code
+        """
         articles = self.database.list_all("articles")
         for article in articles:
             article["comment_count"] = self.database.count("comments", {"article_id": article.get("_id")})
@@ -120,6 +139,10 @@ class Handler:
         return response, status
 
     def get_articles_textless(self) -> (bytes, str):
+        """
+        get all articles, textless
+        @return: tuple of encoded jsonified articles representation and status code
+        """
         articles = self.database.list_all("articles")
         for article in articles:
             del article["text"]
@@ -128,17 +151,26 @@ class Handler:
         return response, status
 
     def get_forbidden(self) -> (bytes, str):
+        """
+        get list of forbidden phrases
+        @return: tuple of encoded jsonified forbidden_phrases and status code
+        """
         response = f"<pre>{jsonify(self.database.list_all("forbidden_phrases"))}</pre>".encode()
         status = HTTP_STATUS[200]
         return response, status
 
     def get_users(self) -> (bytes, str):
+        """
+        get list of users
+        @return: tuple of encoded jsonified users collection and status code
+        """
         response = f"<pre>{jsonify(self.database.list_all("users"))}</pre>".encode()
         status = HTTP_STATUS[200]
         return response, status
 
     def add_article(self, username: str, post_input: dict) -> (bytes, str):
         user = self.database.search_one("users", {"username": username})
+        # TODO check no id error
         art = Article(
             post_input["title"],
             post_input["text"],
