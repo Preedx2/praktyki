@@ -52,6 +52,7 @@ class Application:
 
             match path:
                 case "/test":
+                    response = f"{method}\n{get_input}".encode()
                     pass
                 case "/":
                     response = b"Index"

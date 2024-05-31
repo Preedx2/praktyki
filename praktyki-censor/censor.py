@@ -2,6 +2,9 @@ from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
 
+DEVELOPMENT = True
+
+
 class Censor:
     def __init__(self):
         with open("mongodb-login", 'r') as file:
@@ -10,27 +13,36 @@ class Censor:
             _password = file.readline()[:-1]
 
         uri = f"mongodb+srv://{_login}:{_password}@{_cluster}.mongodb.net/?retryWrites=true&w=majority&appName=praktyki0"
-        client = MongoClient(uri, server_api=ServerApi('1'))
-        database = client.get_database("praktyki_app_db")
-        self.comments = database["comments"]
+        self.client = MongoClient(uri, server_api=ServerApi('1'))
+        self.database = self.client.get_database("praktyki_app_db")
+        self.comments = self.database["comments"]
 
         self.pipeline = [
             {"$match": {"operationType": {'$in': ['insert', 'update']}}},
         ]
 
-        self.phrases = ["kupa", "dupa"]
         self.replacement = "[REDACTED]"
-
-        for phrase in self.phrases:
-            if phrase in self.replacement:
-                raise RuntimeError(f"Forbidden phrase {phrase} found in replacement phrase {self.replacement}."
-                                   f"Cannot start censorship listener because of risk of cascade")
+        self.phrases = self.load_phrases()
 
     def __del__(self):
         if hasattr(self, 'client'):
             self.client.close()
 
+    def load_phrases(self) -> list[str]:
+        collection = self.database.get_collection("forbidden_phrases")
+        phrases = [x.get("phrase") for x in collection.find({})]
+        for phrase in phrases:
+            if phrase in self.replacement:
+                raise RuntimeError(f"Forbidden phrase {phrase} found in replacement phrase {self.replacement}."
+                                   f"Cannot load phrase list because of risk of cascade")
+
+        if DEVELOPMENT:
+            print(phrases, flush=True)
+
+        return phrases
+
     def process_text(self, text, comment_id):
+        self.phrases = self.load_phrases()
         changes = False
         new_text = text
         for phrase in self.phrases:
