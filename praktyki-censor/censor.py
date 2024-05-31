@@ -1,3 +1,5 @@
+import threading
+
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
@@ -16,6 +18,7 @@ class Censor:
         self.client = MongoClient(uri, server_api=ServerApi('1'))
         self.database = self.client.get_database("praktyki_app_db")
         self.comments = self.database["comments"]
+        self.phrase_col = self.database["forbidden_phrases"]
 
         self.pipeline = [
             {"$match": {"operationType": {'$in': ['insert', 'update']}}},
@@ -29,8 +32,7 @@ class Censor:
             self.client.close()
 
     def load_phrases(self) -> list[str]:
-        collection = self.database.get_collection("forbidden_phrases")
-        phrases = [x.get("phrase") for x in collection.find({})]
+        phrases = [x.get("phrase") for x in self.phrase_col.find({})]
         for phrase in phrases:
             if phrase in self.replacement:
                 raise RuntimeError(f"Forbidden phrase {phrase} found in replacement phrase {self.replacement}."
@@ -42,7 +44,6 @@ class Censor:
         return phrases
 
     def process_text(self, text, comment_id):
-        self.phrases = self.load_phrases()
         changes = False
         new_text = text
         for phrase in self.phrases:
@@ -53,7 +54,7 @@ class Censor:
         if changes:
             self.comments.update_one({'_id': comment_id}, {"$set": {"text": new_text}})
 
-    def listen(self):
+    def listen_to_comments(self):
         with self.comments.watch(self.pipeline) as stream:
             print("Listening for inserts in comments collection...", flush=True)
             for change in stream:
@@ -66,12 +67,31 @@ class Censor:
 
                 self.process_text(text, comment_id)
 
+    def listen_to_phrases(self):
+        with self.phrase_col.watch(self.pipeline) as stream:
+            print("Listening for inserts in forbidden_phrases collection...", flush=True)
+            for change in stream:
+                old_phrases = self.phrases.copy()
+                try:
+                    self.phrases = self.load_phrases()
+                except RuntimeError as er:
+                    if DEVELOPMENT:
+                        print(er, flush=True)
+                    print(f"Phrases loaded from database cause cascade, keeping old list of phrases", flush=True)
+                    self.phrases = old_phrases
+
 
 if __name__ == "__main__":
     try:
         censor = Censor()
-        while True:
-            censor.listen()
+        comments_thread = threading.Thread(target=censor.listen_to_comments)
+        phrases_thread = threading.Thread(target=censor.listen_to_phrases)
+
+        comments_thread.start()
+        phrases_thread.start()
+
+        comments_thread.join()
+        phrases_thread.join()
     except KeyboardInterrupt:
         print("Listener has been manually shutdown")
     except RuntimeError as e:
