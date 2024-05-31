@@ -20,8 +20,11 @@ class Censor:
         self.comments = self.database["comments"]
         self.phrase_col = self.database["forbidden_phrases"]
 
-        self.pipeline = [
+        self.comment_pipeline = [
             {"$match": {"operationType": {'$in': ['insert', 'update']}}},
+        ]
+        self.phrases_pipeline = [
+            {"$match": {"operationType": {'$in': ['insert', 'update', 'delete']}}},
         ]
 
         self.replacement = "[REDACTED]"
@@ -55,7 +58,7 @@ class Censor:
             self.comments.update_one({'_id': comment_id}, {"$set": {"text": new_text}})
 
     def listen_to_comments(self):
-        with self.comments.watch(self.pipeline) as stream:
+        with self.comments.watch(self.comment_pipeline) as stream:
             print("Listening for inserts in comments collection...", flush=True)
             for change in stream:
                 if change.get("operationType") == 'insert':
@@ -68,7 +71,7 @@ class Censor:
                 self.process_text(text, comment_id)
 
     def listen_to_phrases(self):
-        with self.phrase_col.watch(self.pipeline) as stream:
+        with self.phrase_col.watch(self.phrases_pipeline) as stream:
             print("Listening for inserts in forbidden_phrases collection...", flush=True)
             for change in stream:
                 old_phrases = self.phrases.copy()
