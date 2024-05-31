@@ -75,55 +75,36 @@ class Application:
                 case "/get_articles_textless":
                     response, status = self.handle.get_articles_textless()
                 case "/get_article":
-                    if get_input is not None:
-                        response, status = self.handle.get_article(get_input)
-                    else:
-                        response, status = b'', HTTP_STATUS[204]
+                    response, status = self.handle.get_article(get_input)
+                case "/get_forbidden":
+                    response, status = self.handle.get_forbidden()
                 case "/get_users":
                     response, status = self.handle.get_users()
                 case "/add_article":
-                    if method == "POST":
-                        if auth_token:
-                            response, status = self.handle.add_article(username, post_input)
-                        else:
-                            raise ex.NotLoggedInException
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    self.authorized_access(auth_token)
+                    response, status = self.handle.add_article(username, post_input)
                 case "/add_comment":
-                    if method == "POST":
-                        if auth_token:
-                            response, status = self.handle.add_comment(username, post_input)
-                        else:
-                            raise ex.NotLoggedInException
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    self.authorized_access(auth_token)
+                    response, status = self.handle.add_comment(username, post_input)
                 case "/add_forbidden":
-                    if method == "POST":
-                        if auth_token:
-                            response, status = self.handle.add_forbidden(post_input)
-                        else:
-                            raise ex.NotLoggedInException
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    self.authorized_access(auth_token)
+                    response, status = self.handle.add_forbidden(post_input)
                 case "/register":
-                    if method == "POST":
-                        response, status = self.handle.register(post_input)
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    response, status = self.handle.register(post_input)
                 case "/login":
-                    if method == "POST":
-                        response, status = self.handle.login(post_input)
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    response, status = self.handle.login(post_input)
                 case "/reset_password":
-                    if method == "POST":
-                        response, status = self.handle.reset_password(post_input)
-                    else:
-                        raise ex.MethodNotAllowedException("POST")
+                    self.access_method(method)
+                    response, status = self.handle.reset_password(post_input)
                 case "/protected":
-                    response, status = b"dupa", "zupa"
-                case "/get_forbidden":
-                    pass
+                    self.authorized_access(auth_token)
+                    response = f"Welcome {username}".encode()
+                    status = HTTP_STATUS[200]
                 case "/edit_forbidden":
                     pass
                 case _:
@@ -139,3 +120,25 @@ class Application:
 
         self.start_response(status, headers)
         yield response
+
+    @staticmethod
+    def access_method(method: str, allowed: list[str] = None) -> None:
+        """
+        Raises MethodNotAllowedException if method is not in allowed
+        @param method: method of access in string
+        @param allowed: list of allowed methods, by default ['POST']
+        """
+        if allowed is None:
+            allowed = 'POST'
+        if method not in allowed:
+            raise ex.MethodNotAllowedException(allowed)
+
+    @staticmethod
+    def authorized_access(auth_token: str) -> None:
+        """
+        Raises NotLoggedInException if auth_token is None
+        @param auth_token: authentication token from environment
+        """
+        if auth_token is None:
+            raise ex.NotLoggedInException
+

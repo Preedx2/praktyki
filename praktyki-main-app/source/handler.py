@@ -4,6 +4,7 @@ from datetime import datetime
 
 import jwt.exceptions
 from bson import ObjectId
+from pymongo.errors import ServerSelectionTimeoutError
 
 import source.exceptions as ex
 from source.collections.users import User
@@ -34,6 +35,7 @@ class Handler:
         @return: tuple of reponse containing error message encoded in bytes
             and status representing HTTP status in string
         """
+
         response = str(error).encode()
         if isinstance(error, ValueError):
             status = HTTP_STATUS[400]
@@ -44,6 +46,9 @@ class Handler:
             status = HTTP_STATUS[403]
         elif isinstance(error, ex.MethodNotAllowedException):
             status = HTTP_STATUS[405]
+        elif isinstance(error, ServerSelectionTimeoutError):
+            response = b"Error while connecting with database"
+            status = HTTP_STATUS[500]
         else:
             response = b"An error has occurred"
             status = HTTP_STATUS[500]
@@ -82,7 +87,9 @@ class Handler:
         return response, status
 
     def get_article(self, get_input: dict) -> (bytes, str):
-        print(get_input, flush=True)
+        if "id" not in get_input:
+            return b"{}", HTTP_STATUS[204]
+
         article_id = ObjectId(get_input["id"][0])
         if "comms" in get_input:
             comm_nmbr = int(get_input["comms"][0])
@@ -117,6 +124,11 @@ class Handler:
         for article in articles:
             del article["text"]
         response = f"<pre>{jsonify(articles)}</pre>".encode()
+        status = HTTP_STATUS[200]
+        return response, status
+
+    def get_forbidden(self) -> (bytes, str):
+        response = f"<pre>{jsonify(self.database.list_all("forbidden_phrases"))}</pre>".encode()
         status = HTTP_STATUS[200]
         return response, status
 
